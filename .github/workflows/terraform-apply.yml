@@ -6,7 +6,7 @@ on:
       - main
 
 env:
-  TF_CLOUD_ORGANIZATION: "YOUR-ORGANIZATION-HERE"
+  TF_CLOUD_ORGANIZATION: "test-lab-ltimossi"
   TF_API_TOKEN: "${{ secrets.TF_API_TOKEN }}"
   TF_WORKSPACE: "learn-terraform-github-actions"
   CONFIG_DIRECTORY: "./"
@@ -19,10 +19,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout
+      - name: Checkoutt
         uses: actions/checkout@v3
 
-      - name: Upload Configuration
+      - name: Upload Configurationn
         uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.0.0
         id: apply-upload
         with:
