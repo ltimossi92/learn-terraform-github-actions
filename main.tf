@@ -1,74 +1,63 @@
-# Copyright (c) HashiCorp, Inc.
-# SPDX-License-Identifier: MPL-2.0
-
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "4.52.0"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = "3.4.3"
-    }
-  }
-  required_version = ">= 1.1.0"
+locals {
+  vpc_id            = "vpc-0c210ef556db0ff73"
+  subnet_id         = "subnet-09a31c4567ccb92d5"
+  ssh_user          = "ubuntu"
+  key_name          = "devops"
+  private_key_path  = "./devops.pem"
 }
 
 provider "aws" {
-  region = "us-west-2"
+  region = var.region
 }
 
-resource "random_pet" "sg" {}
+resource "aws_security_group" "nginx" {
+  name = "nginx_access"
+  vpc_id = local.vpc_id
 
-data "aws_ami" "ubuntu" {
-  most_recent = true
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-
-  owners = ["099720109477"] # Canonical
-}
-
-resource "aws_instance" "web" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = "t2.micro"
-  vpc_security_group_ids = [aws_security_group.web-sg.id]
-
-  user_data = <<-EOF
-              #!/bin/bash
-              apt-get update
-              apt-get install -y apache2
-              sed -i -e 's/80/8080/' /etc/apache2/ports.conf
-              echo "Hello World" > /var/www/html/index.html
-              systemctl restart apache2
-              EOF
-}
-
-resource "aws_security_group" "web-sg" {
-  name = "${random_pet.sg.id}-sg"
   ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
+    from_port = 22
+    to_port = 22
+    protocol = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-  // connectivity to ubuntu mirrors is required to run `apt-get update` and `apt-get install apache2`
+
+  ingress {
+    from_port = "80"
+    to_port = "80"
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
-    from_port   = 0
-    to_port     = 0
+    from_port   = "0"
+    to_port     = "0"
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-output "web-address" {
-  value = "${aws_instance.web.public_dns}:8080"
+resource "aws_instance" "nginx" {
+  ami                         = var.ami
+  subnet_id                   = local.subnet_id
+  instance_type               = var.instance_type
+  associate_public_ip_address = true
+  security_groups             = [aws_security_group.nginx.id]
+  key_name                    = local.key_name
+
+  provisioner "remote-exec" {
+    inline = ["echo Done!"]
+
+    connection {
+      type        = "ssh"
+      user        = local.ssh_user
+      private_key = file(local.private_key_path)
+      host        = aws_instance.nginx.public_ip
+    }
+  }
+
+  tags = {
+    Name = var.instance_name
+  }
 }
+
+output "public_ip" { value = "${aws_instance.nginx.public_ip}" }
